@@ -1,0 +1,14 @@
+## Interface: 90105
+## Title: CountZoneVisits
+## Notes: Howmany times a character has entered a zone 0.0.4
+## Author: Viuh
+## Version: 0.0.4
+## Created: 31/12/2021
+## Dependencies: 
+## License: MIT
+
+Libs/LibStub/LibStub.lua
+Libs/LibRealmInfo/LibRealmInfo.lua
+tablesave.lua
+
+CountZoneVisits.lua
