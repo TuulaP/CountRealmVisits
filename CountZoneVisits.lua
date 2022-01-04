@@ -1,6 +1,7 @@
 
 --dofile( "tablesave.lua" )
 
+local f3
 
 SLASH_CMTV1 = "/czv"
 SLASH_CMTV2 = "/countzonevisits"
@@ -33,39 +34,157 @@ local function maxFromHash(hash)
 end
 
 
+--- display popup
+
+local function showPopup (data)
+
+    f3 = CreateFrame("Frame", "YourFrameName", UIParent) -- BUG: creates new frame every time
+    f3:SetSize(400, 400)
+    f3:SetPoint("CENTER")
+    -- (2)
+--    f3:SetBackdrop({
+--    	bgFile = "Interface/ChatFrame/ChatFrameBackground",
+--    	edgeFile = "Interface/ChatFrame/ChatFrameBackground",
+--    	edgeSize = 1, tile=true,
+--        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+--    })
+--    f3:SetBackdropColor(0, 0, 0, .5)
+--    f3:SetBackdropBorderColor(0, 0, 0)
+
+    -- (3)
+    f3:EnableMouse(true)
+    f3:SetMovable(true)
+    f3:RegisterForDrag("LeftButton")
+    f3:SetScript("OnDragStart", f3.StartMoving)
+    f3:SetScript("OnDragStop", f3.StopMovingOrSizing)
+    f3:SetScript("OnHide", f3.StopMovingOrSizing)
+
+    -- (4)
+    local close = CreateFrame("Button", "Close window", f3, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", f3, "TOPRIGHT")
+    close:SetScript("OnClick", function()
+        f3:Hide()
+    end)
+
+    -- (5)
+    local text = f3:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    text:SetPoint("CENTER")
+    text:SetText("In zone: " .. data)
+
+end
+
+
 local function CountZoneVisitsHandler()
 
-    print("CZV: Realms visited: " .. options["totalSwaps"])  -- BUG?
- 
+
     if CountZoneVisitsData == nil then
         -- This is the first time this addon is loaded; set SVs to default values
         CountZoneVisitsData = 0
     end
 
-    local mapID = C_Map.GetBestMapForUnit("player"); 
-    local zoneName = C_Map.GetMapInfo(mapID).name
-   
-    if zoneVisits[zoneName] then
-        zoneVisits[zoneName] = zoneVisits[zoneName] + 1
+    options["totalSwaps"] = CountZoneVisitsData
+
+    print("CZV: Saved visits: " .. CountZoneVisitsData )
+    print("CZV: Realms visited: " .. options["totalSwaps"])
+
+    local isshamanmagetower = false
+    local isdpsmagetower = false -- fiendish vault , agatha
+
+    local mapID = ""
+
+    if IsInInstance() then
+        print("CZV: In instance?")
+
+        local diids = "kissa"
+        local errorc = false
+
+        local errorc, diids = pcall( C_Map.GetInstanceInfo, mapID )
+
+
+        local errorc, diids = pcall( GetZoneText )
+
+        if not errorc then
+            print("CZV2: Error! ")
+        else
+            print("CZV2 instance : " .. diids)
+        end
+
+        local plist={}
+        local tank = ""
+        if diids == "Black Rook Hold" then
+            print("CZV2: Black Rook Hold")
+
+            if IsInGroup() then
+                for i=1,4 do
+                    if (UnitName('party'..i)) then
+                       tank = UnitName('party'..i)
+                       print("Raid member: " .. tank)
+                       tinsert(plist,(UnitName('party'..i)))
+                       if tank == "Commander Jarod Shadowsong" then
+                           isshamanmagetower = true
+                       end
+                    end
+                end
+            end
+
+        end
     else
-        zoneVisits[zoneName] = 1
+        mapID = C_Map.GetBestMapForUnit("player");
+        print("CZV: Current map: " .. mapID)
+
     end
+
+    local zoneName = ""
+    if not IsInInstance() then
+        -- mapID = C_Map.GetBestMapForUnit("player");
+        local mapID = C_Map.GetBestMapForUnit("player");
+        zoneName = C_Map.GetMapInfo(mapID).name
+
+        if zoneVisits[zoneName] then
+            zoneVisits[zoneName] = zoneVisits[zoneName] + 1
+        else
+            zoneVisits[zoneName] = 1
+        end
+    end
+
+    if (isshamanmagetower) then
+        showPopup("Shaman mage tower!" .. CountZoneVisitsData)
+
+        print("Alldata: " .. table.concat(zoneVisits, ", "))
+
+    end
+
+    local name
+    local instanceType
+    local difficulty
+    local difficultyName
+    local maxPlayers
+    local tsup
+
+    name, instanceType, difficulty, difficultyName, maxPlayers = GetInstanceInfo()
+
+    tsup = GetSubZoneText()
+
+    -- print("CZV :: You are at instance: " .. name )  -- gives Pandaria
+    print("CZV :: You are at subzone: " .. tsup .. " OR " ..  zoneName)
 
 
     options["totalSwaps"] = options["totalSwaps"] + 1
-    
+    showPopup(CountZoneVisitsData)
+
     local location, qty = maxFromHash(zoneVisits)
 
     CountZoneVisitsData = options["totalSwaps"]
 
     print("CZV: " .. location .. " with " .. qty .. " visits")
-        --// test save to file
-    --assert( table.save( zoneVisits, "test_tbl2.lua" ) == nil )
+
+
+
 
 end
 
 
-SlashCmdList["CZV"] = CountZoneVisitsHandler
+-- RegisterNewSlashCommand("CZV", "CountZoneVisitsHandler")
 
 
 local frame = CreateFrame("FRAME", "FoobarAddonFrame");
@@ -74,6 +193,11 @@ local function eventHandler(self, event, ...)
     CountZoneVisitsHandler();
 end
 frame:SetScript("OnEvent", eventHandler);
+
+
+
+
+SlashCmdList["CZV"] = CountZoneVisitsHandler(f3)
 
 
 local frame2 = CreateFrame("FRAME", "FoobarAddonFrame2");
@@ -93,11 +217,15 @@ frame2:SetScript("OnEvent", function(self, event, arg1)
             -- Haven't yet seen this character, so increment the number of characters met
             CountZoneVisitsData = CountZoneVisitsData + 1
             options['totalSwaps'] = CountZoneVisitsData
+            text:SetText("Zones visited: " .. CountZoneVisitsData)
+
         end
 
     elseif event == "PLAYER_LOGOUT" then
             -- Save the time at which the character logs out
             CountZoneVisitsData = options["totalSwaps"]
+            -- TODO: closing of frame somewhere here
+            --f3.Hide()
+            --print("CZV: Bye, popup closed?")
     end
 end)
-
